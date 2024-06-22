@@ -8,7 +8,7 @@ contract HealthDataWallet {
         uint age;
         uint patientID;
         address patientAddress;
-        address[] authorizedAddresses;
+        mapping(address => bool) authorizedAddresses;
         string[] medicalRecords;
     }
 
@@ -19,7 +19,7 @@ contract HealthDataWallet {
     mapping(uint => Patient) private patientData;
 
     // Mapping of a providerAddress to Patient Struct to a bool: for granting and revoking access to patients
-    mapping(address => mapping(Patient => bool)) private grantAccess;
+    // mapping(address => mapping(Patient => bool)) private grantAccess;
 
     // Event to be emitted when a new patient is registered
     event PatientRegistered(
@@ -31,10 +31,24 @@ contract HealthDataWallet {
     // Event to be emitted when a new patient record is added
     event MedicalRecordAdded(address indexed patientAddress, string ipfsHash);
 
-    // Modifier to check if the caller is the patient
-    modifier onlyPatient(address _patientAddress) {
-        require(msg.sender == _patientAddress, "You are not authorized");
+    // Modifier to check if a caller is the patient
+    modifier onlyPatient() {
+        require(patients[msg.sender].age != 0, "Not a Registered Patient");
         _;
+    }
+
+    // modifier to check if a caller is an authorized address
+    modifier onlyAuthorizedAddress(address patientAddress) {
+        require(
+            patients[patientAddress].authorizedAddresses[msg.sender],
+            "Not an authorized address"
+        );
+        _;
+    }
+
+    // Function to add authorized addresses
+    function authorizeAddress(address _providerAddress) public onlyPatient {
+        patients[msg.sender].authorizedAddresses[_providerAddress] = true;
     }
 
     // Function to register a new patient
@@ -52,17 +66,8 @@ contract HealthDataWallet {
         patient.age = _age;
         patient.patientAddress = msg.sender;
         patient.patientID = _patientID;
-        grantAccess[msg.sender][_patientID] = true;
+        //grantAccess[msg.sender][_patientID] = true;
         emit PatientRegistered(msg.sender, _name, _age);
-    }
-
-    // Function to add authorized addresses
-    function authorizeAddress(address _providerAddress, uint patientID) public {
-        require(
-            msg.sender == patientData[patientID].patientAddress,
-            "You cannot access this patient"
-        );
-        grantAccess[_providerAddress][patient] = true;
     }
 
     // Function to check if address is authorized
@@ -72,7 +77,7 @@ contract HealthDataWallet {
     ) public returns (bool) {
         Patient storage patient = patientData[patientID];
 
-        if (grantAccess[_providerAddress][patient]) {
+        if (patients[_providerAddress]) {
             return true;
         }
 
@@ -80,14 +85,12 @@ contract HealthDataWallet {
     }
 
     // Function to add a new medical record
-    function addMedicalRecord(string memory _ipfsHash, uint patientID) public {
-        Patient storage patient = patientData[patientID];
+    function addMedicalRecord(
+        string memory _ipfsHash,
+        address patientAddress
+    ) public onlyAuthorizedAddress {
         require(bytes(_ipfsHash).length > 0, "IPFS hash cannot be empty");
-        require(
-            isAuthorized(msg.sender, patientID),
-            "You cannot access this patient"
-        );
-
+        Patient storage patient = patients[patientAddress];
         // Add the IPFS hash to the patient medical record
         patient.medicalRecords.push(_ipfsHash);
 
@@ -101,24 +104,15 @@ contract HealthDataWallet {
     )
         public
         view
-        returns (string memory name, uint age, string[] memory medicalRecords)
+        onlyAuthorizedAddress
+        returns (string memory, uint, string[] memory)
     {
-        require(
-            isAuthorized(msg.sender, patientID),
-            "You cannot access this patient"
-        );
         Patient storage patient = patients[_patientAddress];
         return (patient.name, patient.age, patient.medicalRecords);
     }
 
     // Function to rovoke access from a medical provider
-    function revokeAccess(address _providerAddress, uint patientID) public {
-        Patient storage patient = patientData[patientID];
-        require(
-            isAuthorized(_providerAddress, patientID),
-            "This provider does not have access"
-        );
-
-        grantAccess[_providerAddress][patient] = false;
+    function revokeAccess(address _providerAddress) public onlyPatient {
+        patients[msg.sender].authorizedAddresses[_providerAddress] = false;
     }
 }
