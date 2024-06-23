@@ -8,6 +8,6 @@ contract walletTest is Test {
     HealthDataWallet private health_wallet;
 
     function setUp() public {
-        health_wallet = new wallet();
+        //health_wallet = new wallet();
     }
 }

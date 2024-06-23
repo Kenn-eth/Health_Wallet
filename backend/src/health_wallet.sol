@@ -2,11 +2,10 @@
 pragma solidity ^0.8.19;
 
 contract HealthDataWallet {
-    // structure to hold patient info
+    // struct to hold patient info
     struct Patient {
         string name;
         uint age;
-        uint patientID;
         address patientAddress;
         mapping(address => bool) authorizedAddresses;
         string[] medicalRecords;
@@ -17,9 +16,6 @@ contract HealthDataWallet {
 
     // Mapping patient ID to Patient struct
     mapping(uint => Patient) private patientData;
-
-    // Mapping of a providerAddress to Patient Struct to a bool: for granting and revoking access to patients
-    // mapping(address => mapping(Patient => bool)) private grantAccess;
 
     // Event to be emitted when a new patient is registered
     event PatientRegistered(
@@ -46,17 +42,8 @@ contract HealthDataWallet {
         _;
     }
 
-    // Function to add authorized addresses
-    function authorizeAddress(address _providerAddress) public onlyPatient {
-        patients[msg.sender].authorizedAddresses[_providerAddress] = true;
-    }
-
     // Function to register a new patient
-    function registerPatient(
-        string memory _name,
-        uint _age,
-        uint _patientID
-    ) public {
+    function registerPatient(string memory _name, uint _age) public {
         require(bytes(_name).length > 0, "Add patient name");
         require(_age > 0, "Age must be greater than zero");
 
@@ -65,30 +52,19 @@ contract HealthDataWallet {
         patient.name = _name;
         patient.age = _age;
         patient.patientAddress = msg.sender;
-        patient.patientID = _patientID;
-        //grantAccess[msg.sender][_patientID] = true;
         emit PatientRegistered(msg.sender, _name, _age);
     }
 
-    // Function to check if address is authorized
-    function isAuthorized(
-        address _providerAddress,
-        uint patientID
-    ) public returns (bool) {
-        Patient storage patient = patientData[patientID];
-
-        if (patients[_providerAddress]) {
-            return true;
-        }
-
-        return false;
+    // Function authorizes address
+    function authorizeAddress(address _providerAddress) public onlyPatient {
+        patients[msg.sender].authorizedAddresses[_providerAddress] = true;
     }
 
     // Function to add a new medical record
     function addMedicalRecord(
         string memory _ipfsHash,
         address patientAddress
-    ) public onlyAuthorizedAddress {
+    ) public onlyAuthorizedAddress(patientAddress) {
         require(bytes(_ipfsHash).length > 0, "IPFS hash cannot be empty");
         Patient storage patient = patients[patientAddress];
         // Add the IPFS hash to the patient medical record
@@ -99,12 +75,11 @@ contract HealthDataWallet {
 
     // Function to get patient details
     function getPatientDetails(
-        address _patientAddress,
-        uint patientID
+        address _patientAddress
     )
         public
         view
-        onlyAuthorizedAddress
+        onlyAuthorizedAddress(_patientAddress)
         returns (string memory, uint, string[] memory)
     {
         Patient storage patient = patients[_patientAddress];
