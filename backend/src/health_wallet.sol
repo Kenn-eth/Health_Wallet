@@ -17,6 +17,9 @@ contract HealthDataWallet {
     // Mapping patient ID to Patient struct
     mapping(uint => Patient) private patientData;
 
+    // checks if patient already exists
+    mapping(address => bool) private existingPatients;
+
     // Event to be emitted when a new patient is registered
     event PatientRegistered(
         address indexed patientAddress,
@@ -27,9 +30,9 @@ contract HealthDataWallet {
     // Event to be emitted when a new patient record is added
     event MedicalRecordAdded(address indexed patientAddress, string ipfsHash);
 
-    // Modifier to check if a caller is the patient
+    // Modifier to check if patient exists
     modifier onlyPatient() {
-        require(patients[msg.sender].age != 0, "Not a Registered Patient");
+        require(existingPatients[msg.sender], "Not a Registered Patient");
         _;
     }
 
@@ -46,17 +49,24 @@ contract HealthDataWallet {
     function registerPatient(string memory _name, uint _age) public {
         require(bytes(_name).length > 0, "Add patient name");
         require(_age > 0, "Age must be greater than zero");
+        require(!existingPatients[msg.sender], "Patient already exists");
 
         // Create new patient record
         Patient storage patient = patients[msg.sender];
         patient.name = _name;
         patient.age = _age;
         patient.patientAddress = msg.sender;
+        authorizedAddresses[msg.sender] = true;
+        existingPatients[msg.sender] = true;
         emit PatientRegistered(msg.sender, _name, _age);
     }
 
     // Function authorizes address
     function authorizeAddress(address _providerAddress) public onlyPatient {
+        require(
+            !patients[msg.sender].authorizedAddresses[_providerAddress],
+            "Already authorized"
+        );
         patients[msg.sender].authorizedAddresses[_providerAddress] = true;
     }
 
@@ -66,6 +76,7 @@ contract HealthDataWallet {
         address patientAddress
     ) public onlyAuthorizedAddress(patientAddress) {
         require(bytes(_ipfsHash).length > 0, "IPFS hash cannot be empty");
+        require(patients[patientAddress].age != 0, "Patient does not exist");
         Patient storage patient = patients[patientAddress];
         // Add the IPFS hash to the patient medical record
         patient.medicalRecords.push(_ipfsHash);
