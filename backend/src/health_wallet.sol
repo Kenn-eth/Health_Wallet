@@ -20,6 +20,8 @@ contract HealthDataWallet {
     // checks if patient already exists
     mapping(address => bool) private existingPatients;
 
+    mapping(address => address[]) private currentPatients;
+
     // Event to be emitted when a new patient is registered
     event PatientRegistered(
         address indexed patientAddress,
@@ -56,7 +58,7 @@ contract HealthDataWallet {
         patient.name = _name;
         patient.age = _age;
         patient.patientAddress = msg.sender;
-        authorizedAddresses[msg.sender] = true;
+        patient.authorizedAddresses[msg.sender] = true;
         existingPatients[msg.sender] = true;
         emit PatientRegistered(msg.sender, _name, _age);
     }
@@ -100,5 +102,9 @@ contract HealthDataWallet {
     // Function to rovoke access from a medical provider
     function revokeAccess(address _providerAddress) public onlyPatient {
         patients[msg.sender].authorizedAddresses[_providerAddress] = false;
+    }
+
+    function viewPatients() public view returns (address[] memory) {
+        return currentPatients[msg.sender];
     }
 }
